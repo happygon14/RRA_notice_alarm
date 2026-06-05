@@ -252,21 +252,20 @@ def main():
     print("현재 게시글:", latest_id)
     print("기존 게시글:", old_id)
 
-    
-  if latest_id != old_id:
+    if latest_id != old_id:
 
-    print("새 공지 발견")
+        print("새 공지 발견")
 
-    info, files = get_notice_detail(link)
+        info, files = get_notice_detail(link)
 
-    send_email(
-        info,
-        files,
-        link
-    )
+        send_email(
+            info,
+            files,
+            link
+        )
 
-    with open("last_id.txt", "w") as f:
-        f.write(latest_id)
+        with open("last_id.txt", "w") as f:
+            f.write(latest_id)
 
     else:
 
