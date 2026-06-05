@@ -115,11 +115,77 @@ def get_latest_notice():
 
 
 
+
+def get_notice_detail(detail_url):
+
+    res = session.get(
+        detail_url,
+        timeout=(30,60),
+        verify=False
+    )
+
+    soup = BeautifulSoup(
+        res.text,
+        "html.parser"
+    )
+
+    table = soup.select_one(
+        "table.table_organ0"
+    )
+
+    rows = table.select("tr")
+
+    info = {}
+
+    for row in rows:
+
+        ths = row.select("th")
+        tds = row.select("td")
+
+        if len(ths) == 1 and len(tds) == 1:
+            info[
+                ths[0].get_text(strip=True)
+            ] = tds[0].get_text(
+                " ",
+                strip=True
+            )
+
+        elif len(ths) == 2 and len(tds) == 2:
+
+            info[
+                ths[0].get_text(strip=True)
+            ] = tds[0].get_text(
+                " ",
+                strip=True
+            )
+
+            info[
+                ths[1].get_text(strip=True)
+            ] = tds[1].get_text(
+                " ",
+                strip=True
+            )
+
+    files = []
+
+    for a in soup.select(
+        'a[href*="FileDownSvl"]'
+    ):
+        files.append(
+            a.get_text(
+                " ",
+                strip=True
+            )
+        )
+
+    return info, files
+
+
 # =========================
 # 메일 보내기 (첨부 포함)
 # =========================
 
-def send_email(title, link):
+def send_email(info, files, link):
 
     msg = MIMEMultipart()
 
@@ -128,12 +194,27 @@ def send_email(title, link):
     msg["To"] = TO_EMAIL
 
     body = f"""
-새로운 행정예고가 등록되었습니다.
+[RRA 행정예고]
 
-제목:
-{title}
+제목
+{info.get('제목','')}
 
-링크:
+담당부서
+{info.get('담당부서','')}
+
+연락처
+{info.get('연락처','')}
+
+기간
+{info.get('기간','')}
+
+내용
+{info.get('내용','')[:1500]}
+
+첨부파일
+{chr(10).join(files)}
+
+원문
 {link}
 """
 
@@ -171,17 +252,21 @@ def main():
     print("현재 게시글:", latest_id)
     print("기존 게시글:", old_id)
 
-    if latest_id != old_id:
+    
+  if latest_id != old_id:
 
-        print("새 공지 발견")
+    print("새 공지 발견")
 
-        send_email(
-            title,
-            link
-        )
+    info, files = get_notice_detail(link)
 
-        with open("last_id.txt", "w") as f:
-            f.write(latest_id)
+    send_email(
+        info,
+        files,
+        link
+    )
+
+    with open("last_id.txt", "w") as f:
+        f.write(latest_id)
 
     else:
 
