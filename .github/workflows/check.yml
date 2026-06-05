@@ -13,7 +13,7 @@
 # 10. 컴퓨터 삭제(세션 종료)
 
 
-name: Check MSIT Notice                            # 워크플로우의 이름. GitHub Action 탭에서 보이는 이름임. 기능에는 영향X 
+name: Check RRA Notice                            # 워크플로우의 이름. GitHub Action 탭에서 보이는 이름임. 기능에는 영향X 
 on:                                                # 언제실행할건지를 정의 (이게 자동화의 핵심 트리거)
   schedule:                                        # 정해진 시간마다 실행하겠음. (한국시간 월~금 6시,10시,14시,18시 4회)
     - cron: "0 0,6 * * 1-5"  # 한국시간 평일 9시, 15시 실행하겠음 (한국시간은 UTC +9시라..)
@@ -43,7 +43,7 @@ jobs:                                              # 실제 작업들을 정의
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           TO_EMAIL: ${{ secrets.TO_EMAIL }}
-        run: python 260427_check_notice.py                         # 파이썬파일 실행
+        run: python 260605_check_notice.py                         # 파이썬파일 실행
 
       - name: 변경사항 커밋
         run: |                                                    # | 는 여러줄 명령어 쓰겠다는 뜻
