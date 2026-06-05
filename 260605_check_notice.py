@@ -25,7 +25,7 @@ from email import encoders                      # 첨부파일 메일용 변환
 
 # 1-2. 환경변수 
   # 1) 사이트 주소 (크롤링 대상 웹사이트)
-LIST_URL = "https://www.msit.go.kr/bbs/list.do?sCode=user&mPid=103&mId=109"    # 과기부 행정예고 목록페이지
+LIST_URL = "https://www.rra.go.kr/ko/notice/atnList.do"    # 국립전파연구원 행정예고 목록페이지
 
   # 2) 이메일 환경변수 (Github Secret에 저장한 내용 불러오기)
 EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
@@ -52,144 +52,74 @@ session.mount("http://", adapter)
 # 2-1. 최신 공지찾기
 
 def get_latest_notice():
-    headers = {                                                # 브라우저 설정
+
+    headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/124.0 Safari/537.36"
         ),
-        "Referer": "https://www.msit.go.kr/",                  # 어디서 들어왔는지..(과기부 메인홈페이지에서 들어왔고)
+        "Referer": "https://www.rra.go.kr/",
         "Accept-Language": "ko-KR,ko;q=0.9"
     }
 
-    res = session.get(                                         # 웹페이지 다운로드 요청
+    res = session.get(
         LIST_URL,
         headers=headers,
-        timeout=30,
+        timeout=(30, 60),
         verify=False
     )
 
-    print("status=", res.status_code)                           # 접속성공여부 확인용, 오류코드 등도 확인가능
+    print("status =", res.status_code)
 
-    soup = BeautifulSoup(res.text,"html.parser")                # HTML 분석 객체 생성 (웹페이지 분해)
+    soup = BeautifulSoup(res.text, "html.parser")
 
-    links = soup.find_all("a", onclick=True)                    # onclick(자바스크립트방식 링크)에 있는 a태그 전부 찾기
+    rows = soup.select("table.table_organ0 tbody tr")
 
-    for a in links:                                             # 링크 하나씩 검사
+    for row in rows:
 
-        onclick = a.get("onclick","")                           # onclick 내용 가져오기
+        a = row.select_one("a")
 
-        if "fn_detail" in onclick:                              # 상세보기 링크만 선택
+        if not a:
+            continue
 
-            m = re.search(r"\d{5,}", onclick)                   # 숫자 5자리 이상 찾기(공지번호 추출용)
+        status_tag = row.select_one("span")
 
-            if m:
-                notice_id = m.group()                           # 최상단(최신) 게시글번호 추출
-                title = a.get_text(strip=True)                  # 제목 추출
-
-                detail_url = (                                  # url 추출
-                        "https://msit.go.kr/bbs/view.do"
-                        "?sCode=user"
-                        "&mId=109"
-                        "&mPid=103"
-                        "&pageIndex="
-                        "&bbsSeqNo=84"
-                        f"&nttSeqNo={notice_id}"
-                        "&searchOpt=ALL"
-                        "&searchTxt="
-                )
-                
-                return notice_id,title,detail_url                 # 게시글번호, 제목, url 반환
-
-    
-    raise Exception("공지 못찾음")
-
-
-# 2-2. 첨부파일 찾기
-# 흐름 : 상세페이지접속  →  HTML분석  →  첨부파일 링크 찾기  →  다운로드용 파일번호 추출  →  리스트로 반환
-
-def get_attachment_info(detail_url):                      # 상세페이지(detail_url)에서 첨부파일정보 추출하는 기능 정의
-
-    res = session.get(                                    # 상세페이지 HTML 다운로드
-        detail_url,
-        headers={
-            "User-Agent":"Mozilla/5.0",
-            "Referer":"https://msit.go.kr/",
-            "Accept-Language":"ko-KR,ko;q=0.9"
-        },
-        timeout=30,
-        verify=False
-    )
-
-    soup = BeautifulSoup(res.text, "html.parser")         # HTML 분석 객체 생성 (웹페이지 분해)
-
-    links = soup.select("a[href], a[onclick]")            # href(일반링크) 또는 onclick(자바스크립트링크)가진 a태그 전부 찾기
-
-    attachments = []                                      # 첨부파일정보 저장용 빈 리스트
-
-    for a in links:                                       # 링크 하나씩검사
-
-        target = (
-            a.get("onclick","")
-            + " "
-            + a.get("href","")
+        status = (
+            status_tag.get_text(strip=True)
+            if status_tag
+            else ""
         )
 
-        if "fn_download" in target or "fileDown" in target:    # 다운로드 링크인지 판별
+        # 진행중만 대상
+        if status != "진행중":
+            continue
 
-            m = re.findall(r"'(.*?)'", target)
+        href = a["href"]
 
-            if len(m) >= 3:
-                attachments.append(
-                    (m[0], m[1], m[2])
-                )
+        m = re.search(r"nb_seq=(\d+)", href)
 
-    return attachments
+        if not m:
+            continue
 
+        notice_id = m.group(1)
 
-# =========================
-# 파일 다운로드
-# =========================
+        title = a.get_text(" ", strip=True)
+        title = title.replace(status, "", 1).strip()
 
-def download_file(file_id, file_sn, ext, detail_url):
+        detail_url = "https://www.rra.go.kr" + href
 
-    url = "https://msit.go.kr/ssm/file/fileDown.do"
+        return notice_id, title, detail_url
 
-    data = {
-        "atchFileNo": file_id,
-        "fileOrd": file_sn,
-        "fileBtn": "A"
-    }
+    raise Exception("진행중 행정예고를 찾지 못함")
 
-    headers = {
-        "User-Agent":"Mozilla/5.0",
-        "Referer": detail_url,
-        "Origin":"https://msit.go.kr"
-    }
-
-    res = session.post(
-        url,
-        data=data,
-        headers=headers,
-        verify=False
-    )
-
-    print(res.headers.get("content-disposition"))
-    print("download size=", len(res.content))
-
-    filename = f"attach.{ext}"
-
-    with open(filename,"wb") as f:
-        f.write(res.content)
-
-    return filename
 
 
 # =========================
 # 메일 보내기 (첨부 포함)
 # =========================
 
-def send_email(title, filepath, meta, deadline, reason, main_points, link):
+def send_email(title, link):
     
     msg = MIMEMultipart()
 
