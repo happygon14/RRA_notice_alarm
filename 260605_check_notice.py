@@ -83,18 +83,6 @@ def get_latest_notice():
         if not a:
             continue
 
-        status_tag = row.select_one("span")
-
-        status = (
-            status_tag.get_text(strip=True)
-            if status_tag
-            else ""
-        )
-
-        # 진행중만 대상
-        if status != "진행중":
-            continue
-
         href = a["href"]
 
         m = re.search(r"nb_seq=(\d+)", href)
@@ -105,13 +93,19 @@ def get_latest_notice():
         notice_id = m.group(1)
 
         title = a.get_text(" ", strip=True)
-        title = title.replace(status, "", 1).strip()
+
+        title = (
+            title
+            .replace("진행중", "")
+            .replace("완료", "")
+            .strip()
+        )
 
         detail_url = "https://www.rra.go.kr" + href
 
         return notice_id, title, detail_url
 
-    raise Exception("진행중 행정예고를 찾지 못함")
+    raise Exception("신규게시글 없음")
 
 
 
